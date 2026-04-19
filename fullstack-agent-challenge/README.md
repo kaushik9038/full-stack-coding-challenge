@@ -172,3 +172,6 @@ Each saved task includes an execution trace in the UI.
 - Successful tasks show validation, intent analysis, routing, execution, and completion steps
 - Rejected tasks show validation, intent analysis or routing details, and a final `failed` step
 - Failed and rejected requests are stored in history so the reasoning path remains inspectable
+
+##Walkthrough Video Link
+- https://uofc-my.sharepoint.com/:v:/g/personal/kaushik_mazumder_ucalgary_ca/IQDxzu5_mjOdSpjNl5zOWazoASxN7fJjGabKx9zXWDhPISc?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&e=dUJywB
