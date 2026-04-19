@@ -1,11 +1,42 @@
 """Task routing and execution."""
 
 import re
+from dataclasses import dataclass
 from typing import Any, Optional
 
 from app.agent.audit_logger import AuditLogger
 from app.agent.registry import ToolRegistry
 from app.agent.tool_definitions import ToolScore
+
+
+class TaskRejectedError(ValueError):
+    def __init__(
+        self,
+        message: str,
+        execution_steps: list[dict[str, Any]],
+        selected_tool: str = "rejected",
+        tools_used: Optional[list[str]] = None,
+    ) -> None:
+        super().__init__(message)
+        self.execution_steps = execution_steps
+        self.selected_tool = selected_tool
+        self.tools_used = tools_used or []
+
+
+@dataclass(frozen=True)
+class IntentAnalysis:
+    candidates: list[ToolScore]
+    matched_intents: list[str]
+    compound_detected: bool
+    top_candidate: ToolScore
+
+
+@dataclass(frozen=True)
+class RouteDecision:
+    selected_tool: str
+    confidence: float
+    selection_reason: str
+    fallback_used: bool
 
 
 class TaskController:
@@ -18,37 +49,54 @@ class TaskController:
     def run_task(self, task: str) -> dict:
         audit_logger = AuditLogger()
         audit_logger.record_step("received", "Task received by controller", task=task)
-        clean_task = self._validate_task_text(task, audit_logger)
+        tool_name = "rejected"
 
-        tool_pick = self._choose_tool(task, clean_task, audit_logger)
-        tool_name = tool_pick["selected_tool"]
-        tool_definition = self.registry.get(tool_name)
+        try:
+            clean_task = self._validate_task_text(task, audit_logger)
+            intent_analysis = self._analyze_intent(task, clean_task, audit_logger)
+            route_decision = self._resolve_route(intent_analysis, audit_logger)
+            tool_name = route_decision.selected_tool
+            tool_definition = self.registry.get(tool_name)
 
-        audit_logger.record_step(
-            "execute",
-            "Executing selected tool",
-            selected_tool=tool_name,
-            confidence=tool_pick["confidence"],
-            selection_reason=tool_pick["selection_reason"],
-            fallback_used=tool_pick["fallback_used"],
-        )
-        result = tool_definition.handler(task)
-        audit_logger.record_step(
-            "complete",
-            "Tool execution completed",
-            output=result["final_output"],
-            metadata=result["metadata"],
-            confidence=tool_pick["confidence"],
-            selection_reason=tool_pick["selection_reason"],
-        )
+            audit_logger.record_step(
+                "execute",
+                "Executing selected tool",
+                selected_tool=tool_name,
+                confidence=route_decision.confidence,
+                selection_reason=route_decision.selection_reason,
+                fallback_used=route_decision.fallback_used,
+            )
+            result = tool_definition.handler(task)
+            audit_logger.record_step(
+                "complete",
+                "Tool execution completed",
+                output=result["final_output"],
+                metadata=result["metadata"],
+                confidence=route_decision.confidence,
+                selection_reason=route_decision.selection_reason,
+            )
 
-        return {
-            "task": task,
-            "final_output": result["final_output"],
-            "selected_tool": tool_name,
-            "tools_used": [tool_name],
-            "execution_steps": audit_logger.export_steps(),
-        }
+            return {
+                "task": task,
+                "final_output": result["final_output"],
+                "selected_tool": tool_name,
+                "tools_used": [tool_name],
+                "execution_steps": audit_logger.export_steps(),
+            }
+        except ValueError as exc:
+            audit_logger.record_step(
+                "failed",
+                "Task execution rejected",
+                error=str(exc),
+                error_type=type(exc).__name__,
+                selected_tool=tool_name,
+            )
+            raise TaskRejectedError(
+                str(exc),
+                execution_steps=[step.model_dump() for step in audit_logger.export_steps()],
+                selected_tool=tool_name,
+                tools_used=[tool_name] if tool_name != "rejected" else [],
+            ) from exc
 
     def _validate_task_text(self, task: str, audit_logger: AuditLogger) -> str:
         clean_text = task.strip()
@@ -69,48 +117,61 @@ class TaskController:
         )
         return clean_text.lower()
 
-    def _choose_tool(self, task: str, clean_task: str, audit_logger: AuditLogger) -> dict[str, Any]:
+    def _analyze_intent(self, task: str, clean_task: str, audit_logger: AuditLogger) -> IntentAnalysis:
         tool_scores = [tool.score(task, clean_task) for tool in self.registry.all()]
         sorted_scores = sorted(tool_scores, key=lambda tool_score: tool_score.confidence, reverse=True)
-        best_score = sorted_scores[0]
+        matched_intents = [score.tool for score in sorted_scores if score.intent_detected]
+        compound_detected = self._has_multiple_intents(tool_scores)
+        audit_logger.record_step(
+            "analyze_intent",
+            "Analyzed task intent candidates",
+            candidates=[self._serialize_tool_score(tool_score) for tool_score in sorted_scores],
+            matched_intents=matched_intents,
+            compound_detected=compound_detected,
+            confidence_threshold=self.CONFIDENCE_THRESHOLD,
+        )
 
-        task_intents = {score.tool: score.intent_detected for score in tool_scores}
-        if self._has_multiple_intents(tool_scores):
+        return IntentAnalysis(
+            candidates=sorted_scores,
+            matched_intents=matched_intents,
+            compound_detected=compound_detected,
+            top_candidate=sorted_scores[0],
+        )
+
+    def _resolve_route(self, analysis: IntentAnalysis, audit_logger: AuditLogger) -> RouteDecision:
+        if analysis.compound_detected:
             audit_logger.record_step(
-                "compound",
-                "Task matched more than one tool; using the highest-confidence match",
-                intents=task_intents,
-                selected_tool=best_score.tool,
-                confidence=best_score.confidence,
+                "route",
+                "Rejected compound task during routing",
+                matched_intents=analysis.matched_intents,
+                top_candidate=analysis.top_candidate.tool,
+                top_confidence=analysis.top_candidate.confidence,
+                determination="Split the request into separate tasks and resubmit each one.",
+            )
+            raise ValueError(
+                "This request includes multiple intents. Please split the request into separate tasks and resubmit each one."
+            )
+
+        if analysis.top_candidate.confidence >= self.CONFIDENCE_THRESHOLD:
+            audit_logger.record_step(
+                "route",
+                "Resolved task to a single tool",
+                selected_tool=analysis.top_candidate.tool,
+                confidence=analysis.top_candidate.confidence,
+                reason=analysis.top_candidate.reason,
+            )
+            return RouteDecision(
+                selected_tool=analysis.top_candidate.tool,
+                confidence=analysis.top_candidate.confidence,
+                selection_reason=analysis.top_candidate.reason,
+                fallback_used=False,
             )
 
         audit_logger.record_step(
             "route",
-            "Scored candidate tools",
-            candidates=[self._serialize_tool_score(tool_score) for tool_score in sorted_scores],
-            confidence_threshold=self.CONFIDENCE_THRESHOLD,
-        )
-
-        if best_score.confidence >= self.CONFIDENCE_THRESHOLD:
-            audit_logger.record_step(
-                "select",
-                "Selected highest-confidence tool",
-                selected_tool=best_score.tool,
-                confidence=best_score.confidence,
-                reason=best_score.reason,
-            )
-            return {
-                "selected_tool": best_score.tool,
-                "confidence": best_score.confidence,
-                "selection_reason": best_score.reason,
-                "fallback_used": False,
-            }
-
-        audit_logger.record_step(
-            "unvalidated_intent",
-            "Intent could not be validated with enough confidence",
-            top_candidate=best_score.tool,
-            top_confidence=best_score.confidence,
+            "Intent could not be resolved to a supported single-tool task",
+            top_candidate=analysis.top_candidate.tool,
+            top_confidence=analysis.top_candidate.confidence,
             confidence_threshold=self.CONFIDENCE_THRESHOLD,
             determination="No intent passed the minimum confidence threshold",
         )

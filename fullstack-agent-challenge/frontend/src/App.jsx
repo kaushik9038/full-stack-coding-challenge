@@ -5,7 +5,7 @@ import ResultPanel from "./components/ResultPanel";
 import TaskForm from "./components/TaskForm";
 
 function formatTaskError(message) {
-  if (message.includes("multiple operations")) {
+  if (message.includes("multiple operations") || message.includes("multiple intents")) {
     return {
       title: "Compound task not supported",
       message: "This request combines multiple operations. Split it into separate text, weather, or calculation tasks.",
@@ -37,12 +37,12 @@ export default function App() {
     loadTasks();
   }, []);
 
-  async function loadTasks() {
+  async function loadTasks({ selectLatest = false } = {}) {
     try {
       const history = await fetchTasks();
       setTasks(history);
       // First load looks empty otherwise, which feels broken even when it isn't.
-      if (history.length && !selectedTask) {
+      if (history.length && (selectLatest || !selectedTask)) {
         setSelectedTask(history[0]);
       }
     } catch (requestError) {
@@ -64,11 +64,9 @@ export default function App() {
       const createdTask = await createTask(task.trim());
       setSelectedTask(createdTask);
       setTask("");
-
-      // Could optimistically prepend here, but just refetching keeps it dumb and reliable.
-      const history = await fetchTasks();
-      setTasks(history);
+      await loadTasks({ selectLatest: true });
     } catch (requestError) {
+      await loadTasks({ selectLatest: true });
       setError(formatTaskError(requestError.message));
     } finally {
       setIsSubmitting(false);

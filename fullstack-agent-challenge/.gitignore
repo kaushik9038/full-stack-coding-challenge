@@ -1,7 +1,12 @@
-backend/__pycache__/
+# Backend generated files
 backend/.venv/
 backend/tasks.db
+backend/.pytest_cache/
+backend/**/__pycache__/
+
+# Frontend generated files
 frontend/node_modules/
 frontend/dist/
-.DS_Store
 
+# OS files
+.DS_Store
