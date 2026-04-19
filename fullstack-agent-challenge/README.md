@@ -50,6 +50,8 @@ fullstack-agent-challenge/
 
 ## Backend Setup
 
+Note: Requires Python 3.13.x. Python 3.14 is not supported by the current dependency set.
+
 ```bash
 cd backend
 python3 -m venv .venv
