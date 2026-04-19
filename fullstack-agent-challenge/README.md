@@ -76,7 +76,7 @@ Frontend runs on `http://127.0.0.1:5173`.
 - `GET /tasks` returns task history.
 - `GET /tasks/{id}` returns one task with the full execution trace.
 
-The routing is rule-based and lightweight on purpose.
+The routing is rule-based and lightweight.
 
 - Tools are registered through a small registry.
 - Each tool carries its own scoring logic, so the controller does not need to know all the details.
@@ -105,5 +105,31 @@ Right now there are 3 tools:
 - SQLite lives locally in `backend/tasks.db`
 - Execution steps are stored as JSON text, mostly to keep the schema boring
 - CORS is enabled for the local Vite frontend
-- Adding a new tool is mostly: write the handler, write the scorer, register it
-- The UI is intentionally simple because the main thing being shown here is the backend flow and trace output
+- Adding a new tool is adding the tool handler and adding it to tool registry, the controller automatically loops through all registered tools
+- The UI is simple by design covering all necessary sections for task entry, history, task tracker.
+
+## Tested Inputs and Outputs
+
+The following inputs were run against the current backend controller and produced these outputs:
+
+```text
+Input: uppercase hello world
+Selected tool: text_processor
+Output: HELLO WORLD
+
+Input: word count this sentence has five words
+Selected tool: text_processor
+Output: Word count: 5
+
+Input: calculate 5 * 8
+Selected tool: calculator
+Output: 40
+
+Input: what is the weather in Edmonton
+Selected tool: weather_mock
+Output: Edmonton: 8°C, Windy
+
+Input: calculate 2 + 2 and weather in Edmonton
+Selected tool: calculator
+Output: 4
+```
