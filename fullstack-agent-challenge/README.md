@@ -2,9 +2,8 @@
 
 This is a small local full-stack app built with a FastAPI backend and a React frontend.
 
-The idea is pretty simple: type in a task, let the backend figure out which tool should handle it, run that tool, save the result, and show the trace in the UI.
+The user will type in a task, the backend figure out the intent of the task and route it to the appropriate tool to handle it, run that tool, save the result, and show the trace in the UI.
 
-It is intentionally not overbuilt. I kept it small enough to demo and reason about without digging through a lot of framework code.
 
 ## Project Structure
 
@@ -77,12 +76,13 @@ Frontend runs on `http://127.0.0.1:5173`.
 - `GET /tasks` returns task history.
 - `GET /tasks/{id}` returns one task with the full execution trace.
 
-The routing is rule-based and pretty lightweight on purpose.
+The routing is rule-based and lightweight on purpose.
 
 - Tools are registered through a small registry.
 - Each tool carries its own scoring logic, so the controller does not need to know all the details.
+- The scoring logic of each tool is a numeric value based on specific keywords it can find on the task request
 - The controller compares scores and picks the best one.
-- If a request has more than one intent in it, the controller just uses the first one it detects in the sentence and runs that. A bit opinionated maybe, but better than failing the whole thing for this kind of demo.
+- If a request has more than one intent in it, the controller compares the scoring from the tools and the highest scorer is awarded the task.
 
 Right now there are 3 tools:
 
