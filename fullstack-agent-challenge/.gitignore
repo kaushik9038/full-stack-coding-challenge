@@ -1,0 +1,7 @@
+backend/__pycache__/
+backend/.venv/
+backend/tasks.db
+frontend/node_modules/
+frontend/dist/
+.DS_Store
+
