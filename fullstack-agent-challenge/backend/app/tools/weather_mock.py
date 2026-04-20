@@ -1,4 +1,4 @@
-"""Mock weather lookup used for local demos."""
+"""Mock weather app """
 
 import re
 
@@ -16,7 +16,6 @@ WEATHER_FIXTURES = {
 
 def get_weather(task: str) -> dict:
     city = _extract_city(task)
-    # Unknown places just fall back to something harmless since this is mock data anyway.
     weather = WEATHER_FIXTURES.get(city.lower(), {"temperature_c": 20, "condition": "Clear"})
     output = f"{city}: {weather['temperature_c']}°C, {weather['condition']}"
 
@@ -45,7 +44,6 @@ def _extract_city(task: str) -> str:
     )
     if match:
         city_text = match.group(1).strip(" ?.!").lower()
-        # Compound prompts like "weather in Edmonton and calculate 2+2" used to leak the "and ..." part.
         city_text = re.split(r"\b(?:and|then|plus)\b", city_text, maxsplit=1)[0].strip()
         filler_words = {"the", "its", "it", "location", "if"}
         filtered_words = [word for word in city_text.split() if word not in filler_words]

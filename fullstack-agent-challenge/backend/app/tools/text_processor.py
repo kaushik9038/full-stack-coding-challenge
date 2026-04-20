@@ -1,4 +1,4 @@
-"""Simple text operations."""
+"""Simple text operations word count, upper/lowercase app"""
 
 import re
 
@@ -36,7 +36,6 @@ def process_text(task: str) -> dict:
 
 
 def _extract_text(task: str, operation: str) -> str:
-    # Quoted text is the least surprising thing to operate on, so give it first dibs.
     quoted = re.findall(r'"([^"]+)"|\'([^\']+)\'', task)
     if quoted:
         first = quoted[0]
@@ -51,13 +50,11 @@ def _extract_text(task: str, operation: str) -> str:
     if match and match.group(1).strip():
         return match.group(1).strip(" :.-")
 
-    # Slightly forgiving fallback. Not elegant, but better than returning nothing.
     return task.strip()
 
 
 def score_text_tool(task: str, clean_task: str) -> ToolScore:
     confidence = 0.1
-    # Text is still the soft fallback bucket.
     matches = ["safe default for general text tasks"]
     intent_detected = False
 

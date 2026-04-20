@@ -5,8 +5,10 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from app.agent.audit_logger import AuditLogger
-from app.agent.registry import ToolRegistry
-from app.agent.tool_definitions import ToolScore
+from app.agent.tool_definitions import ToolDefinition, ToolScore
+from app.tools.calculator import CALCULATOR_TOOL
+from app.tools.text_processor import TEXT_PROCESSOR_TOOL
+from app.tools.weather_mock import WEATHER_TOOL
 
 
 class TaskRejectedError(ValueError):
@@ -39,6 +41,24 @@ class RouteDecision:
     fallback_used: bool
 
 
+class ToolRegistry:
+    def __init__(self) -> None:
+        self._tools: dict[str, ToolDefinition] = {
+            TEXT_PROCESSOR_TOOL.name: TEXT_PROCESSOR_TOOL,
+            CALCULATOR_TOOL.name: CALCULATOR_TOOL,
+            WEATHER_TOOL.name: WEATHER_TOOL,
+        }
+
+    def get(self, name: str) -> ToolDefinition:
+        return self._tools[name]
+
+    def all(self) -> list[ToolDefinition]:
+        return list(self._tools.values())
+
+    def names(self) -> list[str]:
+        return list(self._tools.keys())
+
+
 class TaskController:
     CONFIDENCE_THRESHOLD = 0.40
     MULTI_INTENT_THRESHOLD = 2
@@ -52,7 +72,7 @@ class TaskController:
         tool_name = "rejected"
 
         try:
-            clean_task = self._validate_task_text(task, audit_logger)
+            clean_task = self._validate_inputs(task, audit_logger)
             intent_analysis = self._analyze_intent(task, clean_task, audit_logger)
             route_decision = self._resolve_route(intent_analysis, audit_logger)
             tool_name = route_decision.selected_tool
@@ -98,7 +118,7 @@ class TaskController:
                 tools_used=[tool_name] if tool_name != "rejected" else [],
             ) from exc
 
-    def _validate_task_text(self, task: str, audit_logger: AuditLogger) -> str:
+    def _validate_inputs(self, task: str, audit_logger: AuditLogger) -> str:
         clean_text = task.strip()
         if not clean_text:
             raise ValueError("Task cannot be empty.")
@@ -121,7 +141,7 @@ class TaskController:
         tool_scores = [tool.score(task, clean_task) for tool in self.registry.all()]
         sorted_scores = sorted(tool_scores, key=lambda tool_score: tool_score.confidence, reverse=True)
         matched_intents = [score.tool for score in sorted_scores if score.intent_detected]
-        compound_detected = self._has_multiple_intents(tool_scores)
+        compound_detected = self._multi_intents(tool_scores)
         audit_logger.record_step(
             "analyze_intent",
             "Analyzed task intent candidates",
@@ -142,14 +162,14 @@ class TaskController:
         if analysis.compound_detected:
             audit_logger.record_step(
                 "route",
-                "Rejected compound task during routing",
+                "Rejected multi intent task during routing",
                 matched_intents=analysis.matched_intents,
                 top_candidate=analysis.top_candidate.tool,
                 top_confidence=analysis.top_candidate.confidence,
-                determination="Split the request into separate tasks and resubmit each one.",
+                determination="Enter one intent at a time.",
             )
             raise ValueError(
-                "This request includes multiple intents. Please split the request into separate tasks and resubmit each one."
+                "This request includes multiple intents. Please enter one intent at a time."
             )
 
         if analysis.top_candidate.confidence >= self.CONFIDENCE_THRESHOLD:
@@ -177,7 +197,7 @@ class TaskController:
         )
         raise ValueError("Intent cannot be validated with the current level of confidence. Please clarify the task.")
 
-    def _has_multiple_intents(self, tool_scores: list[ToolScore]) -> bool:
+    def _multi_intents(self, tool_scores: list[ToolScore]) -> bool:
         return sum(1 for tool_score in tool_scores if tool_score.intent_detected) >= self.MULTI_INTENT_THRESHOLD
 
     def _serialize_tool_score(self, tool_score: ToolScore) -> dict[str, Any]:

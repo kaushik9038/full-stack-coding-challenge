@@ -31,7 +31,6 @@ def build_tool_score(
     signals: list[str],
     intent_detected: bool,
 ) -> ToolScore:
-    # Keeping the score shaping here saves each tool from redoing the same little cleanup.
     return ToolScore(
         tool=tool,
         confidence=round(min(confidence, 0.99), 2),

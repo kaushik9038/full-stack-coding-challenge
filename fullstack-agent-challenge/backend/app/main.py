@@ -3,9 +3,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes.task_routes import router as tasks_router
-import app.db.models
+from app.api import router
 from app.db.session import Base, engine
+import app.db.models
 
 Base.metadata.create_all(bind=engine)
 
@@ -20,9 +20,4 @@ app.add_middleware(
 )
 
 
-@app.get("/health")
-def health_check() -> dict[str, str]:
-    return {"status": "ok"}
-
-
-app.include_router(tasks_router)
+app.include_router(router)

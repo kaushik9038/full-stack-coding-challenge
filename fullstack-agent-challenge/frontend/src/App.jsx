@@ -5,24 +5,28 @@ import ResultPanel from "./components/ResultPanel";
 import TaskForm from "./components/TaskForm";
 
 function formatTaskError(message) {
-  if (message.includes("multiple operations") || message.includes("multiple intents")) {
+  if (message.includes("multiple operations") || message.includes("multiple intents") || message.includes("multi intent")) {
     return {
-      title: "Compound task not supported",
-      message: "This request combines multiple operations. Split it into separate text, weather, or calculation tasks.",
+      title: "Multi intent task",
+      message: "Please enter one intent at a time.",
     };
   }
 
   if (message.includes("cannot be validated with the current level of confidence")) {
     return {
-      title: "Intent not validated",
-      message: "The controller could not determine one intent with enough confidence. Rephrase the task more explicitly.",
+      title: "Task unclear",
+      message: "Please reword the task.",
     };
   }
 
   return {
-    title: "Request failed",
+    title: "Error",
     message,
   };
+}
+
+function formatTimestamp(timestamp) {
+  return new Date(timestamp).toLocaleString();
 }
 
 export default function App() {
@@ -33,7 +37,6 @@ export default function App() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Good enough for this app. No need to get fancy with a data layer yet.
     loadTasks();
   }, []);
 
@@ -41,7 +44,6 @@ export default function App() {
     try {
       const history = await fetchTasks();
       setTasks(history);
-      // First load looks empty otherwise, which feels broken even when it isn't.
       if (history.length && (selectLatest || !selectedTask)) {
         setSelectedTask(history[0]);
       }
@@ -92,15 +94,21 @@ export default function App() {
         </header>
         <TaskForm
           task={task}
-          onTaskChange={setTask}
+          setTask={setTask}
           onSubmit={handleSubmit}
           isSubmitting={isSubmitting}
           error={error}
         />
-        <ResultPanel result={selectedTask} />
+        <ResultPanel selectedTask={selectedTask} formatTimestamp={formatTimestamp} />
       </section>
+
       <aside className="right-column">
-        <HistoryPanel tasks={tasks} selectedId={selectedTask?.id} onSelect={handleSelect} />
+        <HistoryPanel
+          tasks={tasks}
+          selectedTask={selectedTask}
+          onSelect={handleSelect}
+          formatTimestamp={formatTimestamp}
+        />
       </aside>
     </main>
   );

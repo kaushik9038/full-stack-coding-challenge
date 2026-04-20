@@ -1,4 +1,4 @@
-"""Arithmetic tool for simple expressions."""
+"""Calculator tool for simple arithmetic app"""
 
 import ast
 import operator
@@ -42,7 +42,6 @@ def _extract_expression(task: str) -> str:
 def _evaluate(expression: str) -> Union[float, int]:
     node = ast.parse(expression, mode="eval")
     value = _eval_node(node.body)
-    # Cleaner in the UI if "40.0" comes back as "40".
     return int(value) if isinstance(value, float) and value.is_integer() else value
 
 
@@ -54,7 +53,6 @@ def _eval_node(node):
         right = _eval_node(node.right)
         return ALLOWED_OPERATORS[type(node.op)](left, right)
     if isinstance(node, ast.UnaryOp) and type(node.op) in ALLOWED_OPERATORS:
-        # Needed for things like "-5 + 2". Easy to miss otherwise.
         operand = _eval_node(node.operand)
         return ALLOWED_OPERATORS[type(node.op)](operand)
     raise ValueError("Unsupported arithmetic expression.")

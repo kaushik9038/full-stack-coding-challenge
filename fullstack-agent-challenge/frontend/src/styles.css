@@ -112,27 +112,17 @@ button:disabled {
 }
 
 .trace-details {
-  margin: 8px 0 0;
-  display: grid;
-  gap: 6px;
+  margin-top: 8px;
 }
 
-.trace-details div {
-  display: grid;
-  gap: 2px;
-}
-
-.trace-details dt {
-  color: #52606d;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.trace-details dd {
-  margin: 0;
-  color: #1f2933;
+.trace-details p {
+  margin: 4px 0 0;
   word-break: break-word;
+}
+
+.trace-details span {
+  color: #52606d;
+  display: inline;
 }
 
 .history-item {
@@ -144,7 +134,6 @@ button:disabled {
 }
 
 .history-item.active {
-  /* This one can be a little blunt. It just needs to read as selected. */
   border-color: #1f2933;
 }
 
